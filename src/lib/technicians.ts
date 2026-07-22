@@ -39,10 +39,21 @@ export async function setTechnicianActive(id: string, isActive: boolean): Promis
 }
 
 async function extractError(error: any): Promise<string> {
+  // Always log the raw error so the real cause is visible in devtools,
+  // even though the UI only ever shows a clean, human-readable string.
+  console.error('Edge function error:', error);
+
+  let body: any;
   try {
-    const body = await error?.context?.json?.();
-    return body?.error?.message || body?.error || error.message || 'Request failed';
+    body = await error?.context?.json?.();
   } catch {
-    return error?.message ?? 'Request failed';
+    body = undefined;
   }
+
+  const candidate = (typeof body?.error === 'string' && body.error) || (typeof body?.error?.message === 'string' && body.error.message) || (typeof error?.message === 'string' && error.message);
+
+  if (candidate && candidate.trim() && candidate.trim() !== '{}') {
+    return candidate;
+  }
+  return 'Request failed — check the Supabase function logs for details.';
 }
