@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { renderShell } from '@/components/layout';
 import { mountAttachments } from '@/components/attachments';
+import { openSendWhatsappModal } from '@/components/send-whatsapp-modal';
+import { generateServiceReport, getServiceReport, deleteServiceReport, getSignedPdfUrl, downloadPdf, printPdf } from '@/lib/documents';
 import type { Profile, WorkOrderPriority, WorkOrderStatus } from '@/types/database.types';
 import { navigate } from '@/router';
 
@@ -202,6 +204,7 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
     <div class="tabs">
       <div class="tab active" data-tab="notes">Notes</div>
       <div class="tab" data-tab="attachments">Photos & PDFs</div>
+      <div class="tab" data-tab="report">Service Report</div>
       <div class="tab" data-tab="history">Status History</div>
     </div>
     <div id="tab-content"></div>
@@ -211,6 +214,12 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
     document.getElementById('status-select')!.addEventListener('change', async (e) => {
       const newStatus = (e.target as HTMLSelectElement).value as WorkOrderStatus;
       await supabase.from('work_orders').update({ status: newStatus }).eq('id', id);
+      if (newStatus === 'completed') {
+        openGenerateReportModal(wo, () => {
+          const reportTab = document.querySelector<HTMLElement>('.tab[data-tab="report"]');
+          reportTab?.click();
+        });
+      }
     });
   }
 
@@ -252,6 +261,69 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
       tabContent.innerHTML = `<div class="panel"><div id="attach-mount"></div></div>`;
       const { data: userData } = await supabase.auth.getUser();
       await mountAttachments(document.getElementById('attach-mount')!, id, userData.user!.id);
+    } else if (tab === 'report') {
+      const report = await getServiceReport(id);
+      if (!report) {
+        tabContent.innerHTML = `
+          <div class="panel">
+            <div class="empty-state"><div class="icon">📄</div>No service report yet.</div>
+            ${canEdit ? `<div style="text-align:center"><button class="btn btn-amber" id="gen-report">Generate Service Report</button></div>` : ''}
+          </div>`;
+        if (canEdit) {
+          document.getElementById('gen-report')!.addEventListener('click', () => openGenerateReportModal(wo, () => renderTab('report')));
+        }
+      } else {
+        tabContent.innerHTML = `
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2 style="font-size:16px">${report.report_number}</h2>
+                <div class="sub" style="color:var(--ink-soft);font-size:12.5px;margin-top:2px">
+                  Generated ${report.generated_at ? new Date(report.generated_at).toLocaleString() : '—'}
+                  ${report.sent_at ? ` · Sent to customer ${new Date(report.sent_at).toLocaleString()}` : ''}
+                </div>
+              </div>
+            </div>
+            <p style="font-size:13.5px;color:var(--ink-soft)"><strong>Summary:</strong> ${report.summary ?? '—'}</p>
+            <p style="font-size:13.5px;color:var(--ink-soft)"><strong>Work performed:</strong> ${report.work_performed ?? '—'}</p>
+            ${report.recommendations ? `<p style="font-size:13.5px;color:var(--ink-soft)"><strong>Recommendations:</strong> ${report.recommendations}</p>` : ''}
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" id="rep-download">⬇ Download PDF</button>
+              <button class="btn btn-ghost btn-sm" id="rep-print">🖨 Print</button>
+              ${canEdit ? `<button class="btn btn-ghost btn-sm" id="rep-send">💬 Send via WhatsApp</button>` : ''}
+              ${canEdit ? `<button class="btn btn-ghost btn-sm" id="rep-regen">↻ Regenerate</button>` : ''}
+              ${profile.role === 'admin' ? `<button class="btn btn-ghost btn-sm" id="rep-delete">🗑 Delete</button>` : ''}
+            </div>
+          </div>`;
+
+        document.getElementById('rep-download')!.addEventListener('click', async () => {
+          const url = report.pdf_storage_path ? await getSignedPdfUrl(report.pdf_storage_path) : null;
+          if (url) await downloadPdf(url, report.report_number);
+        });
+        document.getElementById('rep-print')!.addEventListener('click', async () => {
+          const url = report.pdf_storage_path ? await getSignedPdfUrl(report.pdf_storage_path) : null;
+          if (url) printPdf(url);
+        });
+        document.getElementById('rep-send')?.addEventListener('click', () => {
+          openSendWhatsappModal({
+            customerId: (wo as any).customer_id,
+            customerName: wo.customers?.contact_name ?? 'customer',
+            customerPhone: wo.customers?.phone ?? null,
+            storagePath: report.pdf_storage_path ?? '',
+            filename: `${report.report_number}.pdf`,
+            defaultCaption: `Hi ${wo.customers?.contact_name ?? ''}, here's the service report for your recent job (${wo.wo_number}).`,
+            source: 'service_report',
+            sourceId: report.id,
+            onSent: () => renderTab('report')
+          });
+        });
+        document.getElementById('rep-regen')?.addEventListener('click', () => openGenerateReportModal(wo, () => renderTab('report')));
+        document.getElementById('rep-delete')?.addEventListener('click', async () => {
+          if (!confirm('Delete this service report?')) return;
+          await deleteServiceReport(report.id);
+          renderTab('report');
+        });
+      }
     } else {
       const { data: history } = await supabase
         .from('work_order_status_history')
@@ -267,4 +339,50 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
   }
 
   await renderTab('notes');
+}
+
+function openGenerateReportModal(wo: any, onDone: () => void) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:560px">
+      <div class="modal-head"><h2>Generate Service Report</h2><button class="modal-close" id="close">✕</button></div>
+      <div id="err" class="form-error" style="display:none"></div>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px">
+        This creates a PDF service report for ${wo.wo_number} that you can download or send to the customer on WhatsApp.
+      </p>
+      <div class="field"><label>Summary</label><textarea id="rg-summary" rows="2" placeholder="Brief summary of the visit…">${wo.description ?? ''}</textarea></div>
+      <div class="field"><label>Work performed</label><textarea id="rg-work" rows="3" placeholder="What was done on site…"></textarea></div>
+      <div class="field"><label>Recommendations (optional)</label><textarea id="rg-rec" rows="2" placeholder="Follow-up work, parts to order, etc."></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" id="cancel">Skip for now</button>
+        <button type="button" class="btn btn-amber" id="generate">Generate PDF</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  const close = () => backdrop.remove();
+  backdrop.querySelector('#close')!.addEventListener('click', close);
+  backdrop.querySelector('#cancel')!.addEventListener('click', close);
+
+  const generateBtn = backdrop.querySelector('#generate') as HTMLButtonElement;
+  generateBtn.addEventListener('click', async () => {
+    const errBox = backdrop.querySelector('#err') as HTMLElement;
+    generateBtn.disabled = true;
+    generateBtn.textContent = 'Generating…';
+    try {
+      await generateServiceReport(wo.id, {
+        summary: (backdrop.querySelector('#rg-summary') as HTMLTextAreaElement).value,
+        work_performed: (backdrop.querySelector('#rg-work') as HTMLTextAreaElement).value,
+        recommendations: (backdrop.querySelector('#rg-rec') as HTMLTextAreaElement).value
+      });
+      close();
+      onDone();
+    } catch (err: any) {
+      errBox.textContent = err.message ?? 'Failed to generate report.';
+      errBox.style.display = 'block';
+      generateBtn.disabled = false;
+      generateBtn.textContent = 'Generate PDF';
+    }
+  });
 }

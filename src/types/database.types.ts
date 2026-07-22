@@ -122,9 +122,12 @@ export interface Attachment {
   created_at: string;
 }
 
+export type DocType = 'estimate' | 'invoice';
+
 export interface Invoice {
   id: string;
   invoice_number: string;
+  doc_type: DocType;
   work_order_id: string | null;
   customer_id: string;
   status: InvoiceStatus;
@@ -133,9 +136,28 @@ export interface Invoice {
   total: number;
   amount_paid: number;
   due_date: string | null;
+  notes: string | null;
+  pdf_storage_path: string | null;
+  converted_from_estimate_id: string | null;
   issued_at: string | null;
   paid_at: string | null;
   created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceReport {
+  id: string;
+  report_number: string;
+  work_order_id: string;
+  summary: string | null;
+  work_performed: string | null;
+  recommendations: string | null;
+  pdf_storage_path: string | null;
+  generated_by: string | null;
+  generated_at: string | null;
+  sent_at: string | null;
+  sent_to_phone: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -201,6 +223,7 @@ export interface Database {
       attachments: { Row: Attachment; Insert: Partial<Attachment>; Update: Partial<Attachment> };
       invoices: { Row: Invoice; Insert: Partial<Invoice>; Update: Partial<Invoice> };
       invoice_line_items: { Row: InvoiceLineItem; Insert: Partial<InvoiceLineItem>; Update: Partial<InvoiceLineItem> };
+      service_reports: { Row: ServiceReport; Insert: Partial<ServiceReport>; Update: Partial<ServiceReport> };
       whatsapp_conversations: { Row: WhatsappConversation; Insert: Partial<WhatsappConversation>; Update: Partial<WhatsappConversation> };
       whatsapp_messages: { Row: WhatsappMessage; Insert: Partial<WhatsappMessage>; Update: Partial<WhatsappMessage> };
       reminders: { Row: Reminder; Insert: Partial<Reminder>; Update: Partial<Reminder> };
