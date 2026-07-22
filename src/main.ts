@@ -6,6 +6,7 @@ import { renderRegister } from '@/pages/register';
 import { renderDashboard } from '@/pages/dashboard';
 import { renderWorkOrdersList, renderWorkOrderDetail } from '@/pages/work-orders';
 import { renderCustomers } from '@/pages/customers';
+import { renderTechnicians } from '@/pages/technicians';
 import { renderInventory } from '@/pages/inventory';
 import { renderInvoices } from '@/pages/invoices';
 import { renderReports } from '@/pages/reports';
@@ -64,6 +65,7 @@ function bootstrap() {
   route('/work-orders', guarded((p) => renderWorkOrdersList(p)));
   route('/work-orders/:id', guarded((p, params) => renderWorkOrderDetail(p, params.id)));
   route('/customers', guarded((p) => renderCustomers(p)));
+  route('/technicians', guarded((p) => renderTechnicians(p)));
   route('/inventory', guarded((p) => renderInventory(p)));
   route('/invoices', guarded((p) => renderInvoices(p)));
   route('/whatsapp', guarded((p) => renderWhatsapp(p)));

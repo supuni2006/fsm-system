@@ -431,6 +431,46 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
   await renderTab('notes');
 }
 
+function openDeclineModal(onConfirm: (reason: string) => void | Promise<void>) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-head"><h2>Decline Job</h2><button class="modal-close" id="close">✕</button></div>
+      <div id="err" class="form-error" style="display:none"></div>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px">
+        This sends the job back to the unassigned pool so it can be reassigned.
+      </p>
+      <div class="field"><label>Reason (optional)</label><textarea id="decline-reason" rows="3" placeholder="Let the office know why you can't take this one…"></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" id="cancel">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirm">Decline Job</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  const close = () => backdrop.remove();
+  backdrop.querySelector('#close')!.addEventListener('click', close);
+  backdrop.querySelector('#cancel')!.addEventListener('click', close);
+
+  const confirmBtn = backdrop.querySelector('#confirm') as HTMLButtonElement;
+  confirmBtn.addEventListener('click', async () => {
+    const errBox = backdrop.querySelector('#err') as HTMLElement;
+    const reason = (backdrop.querySelector('#decline-reason') as HTMLTextAreaElement).value.trim();
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Declining…';
+    try {
+      await onConfirm(reason);
+      close();
+    } catch (err: any) {
+      errBox.textContent = err.message ?? 'Failed to decline job.';
+      errBox.style.display = 'block';
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Decline Job';
+    }
+  });
+}
+
 function openGenerateReportModal(wo: any, onDone: () => void) {
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';

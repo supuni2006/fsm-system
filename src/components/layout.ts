@@ -8,13 +8,13 @@ const NAV: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: '◧', roles: ['admin', 'technician', 'customer'] },
   { path: '/work-orders', label: 'Work Orders', icon: '🛠', roles: ['admin', 'technician', 'customer'] },
   { path: '/customers', label: 'Customers', icon: '👤', roles: ['admin'] },
+  { path: '/technicians', label: 'Technicians', icon: '🧑‍🔧', roles: ['admin'] },
   { path: '/inventory', label: 'Inventory', icon: '📦', roles: ['admin', 'technician'] },
   { path: '/invoices', label: 'Invoices', icon: '🧾', roles: ['admin', 'customer'] },
   { path: '/whatsapp', label: 'WhatsApp Chat', icon: '💬', roles: ['admin', 'technician'] },
   { path: '/reminders', label: 'Reminders', icon: '⏰', roles: ['admin'] },
   { path: '/reports', label: 'Reports', icon: '📊', roles: ['admin'] }
 ];
-
 export function renderShell(profile: Profile, activePath: string, title: string, subtitle = ''): HTMLElement {
   const app = document.getElementById('app')!;
   app.innerHTML = '';
