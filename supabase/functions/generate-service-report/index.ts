@@ -6,11 +6,15 @@
 
 import { adminClient, requireRole, json } from '../_shared/auth.ts';
 import { newPdf, header, footer, keyValueRow, table, text, paragraph, down, toBytes } from '../_shared/pdf.ts';
+import { corsHeaders, handleCors } from '../_shared/cors.ts';
 
 const CONTENT_WIDTH = 499; // PAGE_W (595.28) - 2*MARGIN (48), minus a little padding
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  const preflight = handleCors(req);
+  if (preflight) return preflight;
+
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders });
 
   const auth = await requireRole(req, ['admin', 'technician']);
   if ('error' in auth) return auth.error;

@@ -9,12 +9,16 @@
 // Deploy:  supabase functions deploy send-whatsapp-document
 
 import { adminClient, requireRole, json } from '../_shared/auth.ts';
+import { corsHeaders, handleCors } from '../_shared/cors.ts';
 
 const WHATSAPP_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')!;
 const PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')!;
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  const preflight = handleCors(req);
+  if (preflight) return preflight;
+
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders });
 
   const auth = await requireRole(req, ['admin', 'technician']);
   if ('error' in auth) return auth.error;
