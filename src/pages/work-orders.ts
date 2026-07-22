@@ -3,10 +3,11 @@ import { renderShell } from '@/components/layout';
 import { mountAttachments } from '@/components/attachments';
 import { openSendWhatsappModal } from '@/components/send-whatsapp-modal';
 import { generateServiceReport, getServiceReport, deleteServiceReport, getSignedPdfUrl, downloadPdf, printPdf } from '@/lib/documents';
+import { assignTechnician, acceptWorkOrder, declineWorkOrder, startWork, endWork } from '@/lib/work-order-actions';
 import type { Profile, WorkOrderPriority, WorkOrderStatus } from '@/types/database.types';
 import { navigate } from '@/router';
 
-const STATUSES: WorkOrderStatus[] = ['unassigned', 'scheduled', 'en_route', 'in_progress', 'on_hold', 'completed', 'cancelled'];
+const STATUSES: WorkOrderStatus[] = ['unassigned', 'assigned', 'accepted', 'scheduled', 'en_route', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 const PRIORITIES: WorkOrderPriority[] = ['low', 'normal', 'high', 'urgent'];
 
 // ---------------- LIST ----------------
@@ -136,17 +137,22 @@ async function openCreateModal(onDone: () => void) {
     const scheduledStart = (backdrop.querySelector('#scheduled_start') as HTMLInputElement).value;
 
     const { data: userData } = await supabase.auth.getUser();
-    const { error } = await supabase.from('work_orders').insert({
-      title: (backdrop.querySelector('#title') as HTMLInputElement).value,
-      description: (backdrop.querySelector('#description') as HTMLTextAreaElement).value || null,
-      customer_id: (backdrop.querySelector('#customer_id') as HTMLSelectElement).value,
-      priority: (backdrop.querySelector('#priority') as HTMLSelectElement).value as WorkOrderPriority,
-      assigned_technician_id: technicianId,
-      status: technicianId ? 'scheduled' : 'unassigned',
-      scheduled_start: scheduledStart ? new Date(scheduledStart).toISOString() : null,
-      service_address: (backdrop.querySelector('#service_address') as HTMLInputElement).value || null,
-      created_by: userData.user?.id
-    });
+    const { data: created, error } = await supabase
+      .from('work_orders')
+      .insert({
+        title: (backdrop.querySelector('#title') as HTMLInputElement).value,
+        description: (backdrop.querySelector('#description') as HTMLTextAreaElement).value || null,
+        customer_id: (backdrop.querySelector('#customer_id') as HTMLSelectElement).value,
+        priority: (backdrop.querySelector('#priority') as HTMLSelectElement).value as WorkOrderPriority,
+        assigned_technician_id: technicianId,
+        status: technicianId ? 'assigned' : 'unassigned',
+        assigned_at: technicianId ? new Date().toISOString() : null,
+        scheduled_start: scheduledStart ? new Date(scheduledStart).toISOString() : null,
+        service_address: (backdrop.querySelector('#service_address') as HTMLInputElement).value || null,
+        created_by: userData.user?.id
+      })
+      .select('id')
+      .single();
 
     if (error) {
       errBox.textContent = error.message;
@@ -155,6 +161,11 @@ async function openCreateModal(onDone: () => void) {
     }
     close();
     onDone();
+
+    // Best-effort — the work order is already created either way.
+    if (technicianId && created) {
+      supabase.functions.invoke('send-work-order-assignment', { body: { work_order_id: created.id } }).catch(() => {});
+    }
   });
 }
 
@@ -173,7 +184,21 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
     return;
   }
 
-  const canEdit = profile.role === 'admin' || (profile.role === 'technician' && wo.assigned_technician_id === profile.id);
+  const isAssignedTech = profile.role === 'technician' && wo.assigned_technician_id === profile.id;
+  const canEdit = profile.role === 'admin' || isAssignedTech;
+  const isAdmin = profile.role === 'admin';
+
+  // Technicians get guided buttons for the main lifecycle; everything else (including
+  // admin, always) falls back to the free-form status dropdown as an override.
+  const guidedStatuses: WorkOrderStatus[] = ['assigned', 'accepted', 'in_progress'];
+  const showGuidedActions = isAssignedTech && guidedStatuses.includes(wo.status);
+  const dropdownStatuses = isAdmin ? STATUSES : STATUSES.filter((s) => s !== 'assigned' && s !== 'accepted');
+
+  let technicians: { id: string; full_name: string }[] = [];
+  if (isAdmin) {
+    const { data } = await supabase.from('profiles').select('id, full_name').eq('role', 'technician').eq('is_active', true);
+    technicians = data ?? [];
+  }
 
   content.innerHTML = `
     <div class="panel">
@@ -192,10 +217,33 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
       <p style="font-size:13.5px;color:var(--ink-soft)">${wo.description ?? 'No description provided.'}</p>
 
       ${
-        canEdit
+        isAdmin
           ? `<div class="field" style="max-width:260px">
+              <label>${wo.assigned_technician_id ? 'Reassign technician' : 'Assign technician'}</label>
+              <select id="assign-select">
+                <option value="">Unassigned</option>
+                ${technicians.map((t) => `<option value="${t.id}" ${t.id === wo.assigned_technician_id ? 'selected' : ''}>${t.full_name}</option>`).join('')}
+              </select>
+              <div id="assign-status" style="font-size:12px;color:var(--ink-soft);margin-top:6px"></div>
+            </div>`
+          : ''
+      }
+
+      ${
+        showGuidedActions
+          ? `<div id="lifecycle-actions" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+              ${wo.status === 'assigned' ? `<button class="btn btn-success" id="accept-btn">✓ Accept Job</button><button class="btn btn-ghost" id="decline-btn">Decline</button>` : ''}
+              ${wo.status === 'accepted' ? `<button class="btn btn-success" id="start-btn">▶ Start Work</button>` : ''}
+              ${wo.status === 'in_progress' ? `<button class="btn btn-danger" id="end-btn">■ End Work</button>` : ''}
+            </div>`
+          : ''
+      }
+
+      ${
+        canEdit && !showGuidedActions
+          ? `<div class="field" style="max-width:260px;margin-top:14px">
               <label>Update status</label>
-              <select id="status-select">${STATUSES.map((s) => `<option value="${s}" ${s === wo.status ? 'selected' : ''}>${s.replace(/_/g, ' ')}</option>`).join('')}</select>
+              <select id="status-select">${dropdownStatuses.map((s) => `<option value="${s}" ${s === wo.status ? 'selected' : ''}>${s.replace(/_/g, ' ')}</option>`).join('')}</select>
             </div>`
           : ''
       }
@@ -210,8 +258,50 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
     <div id="tab-content"></div>
   `;
 
+  if (isAdmin) {
+    document.getElementById('assign-select')!.addEventListener('change', async (e) => {
+      const technicianId = (e.target as HTMLSelectElement).value;
+      const statusEl = document.getElementById('assign-status')!;
+      if (!technicianId) {
+        await supabase.from('work_orders').update({ assigned_technician_id: null, status: 'unassigned' }).eq('id', id);
+        renderWorkOrderDetail(profile, id);
+        return;
+      }
+      statusEl.textContent = 'Assigning and sending WhatsApp notification…';
+      try {
+        const result = await assignTechnician(id, technicianId);
+        statusEl.textContent = result.whatsappSent ? 'Assigned — WhatsApp notification sent.' : `Assigned, but WhatsApp message failed: ${result.whatsappError}`;
+      } catch (err: any) {
+        statusEl.textContent = err.message ?? 'Failed to assign technician.';
+        return;
+      }
+      renderWorkOrderDetail(profile, id);
+    });
+  }
+
+  document.getElementById('accept-btn')?.addEventListener('click', async () => {
+    await acceptWorkOrder(id);
+    renderWorkOrderDetail(profile, id);
+  });
+  document.getElementById('decline-btn')?.addEventListener('click', () => {
+    openDeclineModal(async (reason) => {
+      await declineWorkOrder(id, reason);
+      renderWorkOrderDetail(profile, id);
+    });
+  });
+  document.getElementById('start-btn')?.addEventListener('click', async () => {
+    await startWork(id);
+    renderWorkOrderDetail(profile, id);
+  });
+  document.getElementById('end-btn')?.addEventListener('click', async () => {
+    await endWork(id);
+    openGenerateReportModal({ ...wo, status: 'completed' }, () => {
+      navigate(`/work-orders/${id}`);
+    });
+  });
+
   if (canEdit) {
-    document.getElementById('status-select')!.addEventListener('change', async (e) => {
+    document.getElementById('status-select')?.addEventListener('change', async (e) => {
       const newStatus = (e.target as HTMLSelectElement).value as WorkOrderStatus;
       await supabase.from('work_orders').update({ status: newStatus }).eq('id', id);
       if (newStatus === 'completed') {

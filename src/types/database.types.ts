@@ -4,7 +4,7 @@
 
 export type UserRole = 'admin' | 'technician' | 'customer';
 export type WorkOrderStatus =
-  | 'unassigned' | 'scheduled' | 'en_route' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+  | 'unassigned' | 'assigned' | 'accepted' | 'scheduled' | 'en_route' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
 export type WorkOrderPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'partially_paid' | 'overdue' | 'void';
 export type ReminderStatus = 'pending' | 'sent' | 'failed' | 'cancelled';
@@ -83,6 +83,10 @@ export interface WorkOrder {
   scheduled_end: string | null;
   actual_start: string | null;
   actual_end: string | null;
+  assigned_at: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  decline_reason: string | null;
   service_address: string | null;
   service_lat: number | null;
   service_lng: number | null;
@@ -174,6 +178,7 @@ export interface InvoiceLineItem {
 export interface WhatsappConversation {
   id: string;
   customer_id: string | null;
+  technician_id: string | null;
   wa_phone_number: string;
   last_message_at: string | null;
   unread_count: number;
