@@ -22,16 +22,36 @@ export async function renderInventory(profile: Profile) {
     }
     el.innerHTML = `
       <table>
-        <thead><tr><th>SKU</th><th>Name</th><th>On hand</th><th>Reorder at</th><th>Unit price</th><th>Status</th></tr></thead>
+        <thead><tr><th>SKU</th><th>Name</th><th>On hand</th><th>Reorder at</th><th>Unit price</th><th>Status</th>${canEdit ? '<th></th>' : ''}</tr></thead>
         <tbody>${data
           .map((i) => {
             const low = i.quantity_on_hand <= i.reorder_level;
             return `<tr><td>${i.sku}</td><td>${i.name}</td><td>${i.quantity_on_hand}</td><td>${i.reorder_level}</td><td>$${Number(i.unit_price).toFixed(2)}</td>
-              <td><span class="badge ${low ? 'badge-urgent' : 'badge-completed'}">${low ? 'Reorder now' : 'In stock'}</span></td></tr>`;
+              <td><span class="badge ${low ? 'badge-urgent' : 'badge-completed'}">${low ? 'Reorder now' : 'In stock'}</span></td>${
+                canEdit
+                  ? `<td style="text-align:right;white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="delete" data-id="${i.id}" title="Delete">🗑</button></td>`
+                  : ''
+              }</tr>`;
           })
           .join('')}</tbody>
       </table>
     `;
+
+    if (canEdit) {
+      el.querySelectorAll<HTMLElement>('[data-action="delete"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id!;
+          const item = data.find((i) => i.id === id);
+          if (!confirm(`Delete ${item?.name ?? 'this item'}? This can't be undone.`)) return;
+          const { error } = await supabase.from('inventory_items').delete().eq('id', id);
+          if (error) {
+            alert(error.message);
+            return;
+          }
+          load();
+        });
+      });
+    }
   }
 
   if (canEdit) {

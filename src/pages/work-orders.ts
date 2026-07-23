@@ -52,7 +52,7 @@ export async function renderWorkOrdersList(profile: Profile) {
     }
     tableEl.innerHTML = `
       <table>
-        <thead><tr><th>WO#</th><th>Title</th><th>Customer</th><th>Technician</th><th>Priority</th><th>Scheduled</th><th>Status</th></tr></thead>
+        <thead><tr><th>WO#</th><th>Title</th><th>Customer</th><th>Technician</th><th>Priority</th><th>Scheduled</th><th>Status</th>${canCreate ? '<th></th>' : ''}</tr></thead>
         <tbody>
           ${data
             .map(
@@ -64,6 +64,11 @@ export async function renderWorkOrdersList(profile: Profile) {
               <td><span class="badge badge-${wo.priority}">${wo.priority}</span></td>
               <td>${wo.scheduled_start ? new Date(wo.scheduled_start).toLocaleString() : '—'}</td>
               <td><span class="badge badge-${wo.status}">${wo.status.replace(/_/g, ' ')}</span></td>
+              ${
+                canCreate
+                  ? `<td style="text-align:right;white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="delete" data-id="${wo.id}" title="Delete">🗑</button></td>`
+                  : ''
+              }
             </tr>`
             )
             .join('')}
@@ -73,6 +78,22 @@ export async function renderWorkOrdersList(profile: Profile) {
     tableEl.querySelectorAll<HTMLElement>('tr.clickable').forEach((tr) => {
       tr.addEventListener('click', () => navigate(`/work-orders/${tr.dataset.id}`));
     });
+    if (canCreate) {
+      tableEl.querySelectorAll<HTMLElement>('[data-action="delete"]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation(); // don't trigger the row's navigate-to-detail click
+          const id = btn.dataset.id!;
+          const wo = data.find((w: any) => w.id === id);
+          if (!confirm(`Delete work order ${wo?.wo_number ?? ''}? This can't be undone.`)) return;
+          const { error } = await supabase.from('work_orders').delete().eq('id', id);
+          if (error) {
+            alert(error.message);
+            return;
+          }
+          load(status);
+        });
+      });
+    }
   }
 
   document.getElementById('filter-status')!.addEventListener('change', (e) => {

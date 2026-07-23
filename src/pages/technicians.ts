@@ -1,9 +1,10 @@
 import { renderShell } from '@/components/layout';
-import { listTechnicians, createTechnician, updateTechnician, setTechnicianActive } from '@/lib/technicians';
+import { listTechnicians, createTechnician, updateTechnician, setTechnicianActive, deleteTechnician } from '@/lib/technicians';
 import type { Profile } from '@/types/database.types';
 
 export async function renderTechnicians(profile: Profile) {
   const content = renderShell(profile, '/technicians', 'Technicians', 'Register technicians and manage who can be assigned jobs.');
+  const canDelete = profile.role === 'admin';
 
   content.innerHTML = `
     <div class="panel">
@@ -46,6 +47,7 @@ export async function renderTechnicians(profile: Profile) {
                 <td style="text-align:right;white-space:nowrap">
                   <button class="btn btn-ghost btn-sm edit-btn">Edit</button>
                   <button class="btn btn-ghost btn-sm toggle-btn">${t.is_active ? 'Deactivate' : 'Activate'}</button>
+                  ${canDelete ? `<button class="btn btn-ghost btn-sm delete-btn" title="Delete">🗑</button>` : ''}
                 </td>
               </tr>`
             )
@@ -61,6 +63,15 @@ export async function renderTechnicians(profile: Profile) {
       row.querySelector('.toggle-btn')!.addEventListener('click', async () => {
         await setTechnicianActive(id, !tech.is_active);
         load();
+      });
+      row.querySelector('.delete-btn')?.addEventListener('click', async () => {
+        if (!confirm(`Delete ${tech.full_name}? This permanently removes their account and can't be undone.`)) return;
+        try {
+          await deleteTechnician(id);
+          load();
+        } catch (err: any) {
+          alert(err.message ?? 'Failed to delete technician.');
+        }
       });
     });
   }

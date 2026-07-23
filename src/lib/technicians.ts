@@ -38,6 +38,16 @@ export async function setTechnicianActive(id: string, isActive: boolean): Promis
   await updateTechnician(id, { is_active: isActive });
 }
 
+/**
+ * Permanently deletes a technician's account via the `delete-technician`
+ * edge function (admin-only, service role), since removing the auth user
+ * isn't possible with a plain client-side call.
+ */
+export async function deleteTechnician(id: string): Promise<void> {
+  const { error } = await supabase.functions.invoke('delete-technician', { body: { id } });
+  if (error) throw new Error(await extractError(error));
+}
+
 async function extractError(error: any): Promise<string> {
   // Always log the raw error so the real cause is visible in devtools,
   // even though the UI only ever shows a clean, human-readable string.

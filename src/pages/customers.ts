@@ -4,6 +4,7 @@ import type { Profile } from '@/types/database.types';
 
 export async function renderCustomers(profile: Profile) {
   const content = renderShell(profile, '/customers', 'Customers', 'Manage accounts, sites, and equipment.');
+  const canDelete = profile.role === 'admin';
   content.innerHTML = `
     <div class="panel">
       <div class="panel-head"><h2>All customers</h2><button class="btn btn-amber" id="new-btn">+ New Customer</button></div>
@@ -20,14 +21,35 @@ export async function renderCustomers(profile: Profile) {
     }
     el.innerHTML = `
       <table>
-        <thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>Email</th><th>Service Address</th></tr></thead>
+        <thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>Email</th><th>Service Address</th>${canDelete ? '<th></th>' : ''}</tr></thead>
         <tbody>${data
           .map(
-            (c) => `<tr><td>${c.contact_name}</td><td>${c.company_name ?? '—'}</td><td>${c.phone}</td><td>${c.email ?? '—'}</td><td>${c.service_address ?? '—'}</td></tr>`
+            (c) => `<tr><td>${c.contact_name}</td><td>${c.company_name ?? '—'}</td><td>${c.phone}</td><td>${c.email ?? '—'}</td><td>${c.service_address ?? '—'}</td>${
+              canDelete
+                ? `<td style="text-align:right;white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="delete" data-id="${c.id}" title="Delete">🗑</button></td>`
+                : ''
+            }</tr>`
           )
           .join('')}</tbody>
       </table>
     `;
+
+    if (canDelete) {
+      el.querySelectorAll<HTMLElement>('[data-action="delete"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id!;
+          const customer = data.find((c) => c.id === id);
+          const label = customer?.company_name ?? customer?.contact_name ?? 'this customer';
+          if (!confirm(`Delete ${label}? This can't be undone.`)) return;
+          const { error } = await supabase.from('customers').delete().eq('id', id);
+          if (error) {
+            alert(error.message);
+            return;
+          }
+          load();
+        });
+      });
+    }
   }
 
   document.getElementById('new-btn')!.addEventListener('click', () => {

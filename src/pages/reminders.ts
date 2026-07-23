@@ -4,6 +4,7 @@ import type { Profile, ReminderChannel } from '@/types/database.types';
 
 export async function renderReminders(profile: Profile) {
   const content = renderShell(profile, '/reminders', 'Reminders', 'Automated nudges for jobs, invoices, and follow-ups.');
+  const canDelete = profile.role === 'admin';
   content.innerHTML = `
     <div class="panel">
       <div class="panel-head"><h2>Upcoming reminders</h2><button class="btn btn-amber" id="new-btn">+ New Reminder</button></div>
@@ -24,7 +25,7 @@ export async function renderReminders(profile: Profile) {
     }
     el.innerHTML = `
       <table>
-        <thead><tr><th>Send at</th><th>Channel</th><th>Recipient</th><th>Message</th><th>Status</th></tr></thead>
+        <thead><tr><th>Send at</th><th>Channel</th><th>Recipient</th><th>Message</th><th>Status</th>${canDelete ? '<th></th>' : ''}</tr></thead>
         <tbody>${data
           .map(
             (r: any) => `<tr>
@@ -33,11 +34,31 @@ export async function renderReminders(profile: Profile) {
               <td>${r.customers?.contact_name ?? '—'}${r.work_orders?.wo_number ? ` (${r.work_orders.wo_number})` : ''}</td>
               <td style="max-width:280px">${r.message}</td>
               <td><span class="badge badge-${r.status === 'sent' ? 'completed' : r.status === 'failed' ? 'cancelled' : 'scheduled'}">${r.status}</span></td>
+              ${
+                canDelete
+                  ? `<td style="text-align:right;white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="delete" data-id="${r.id}" title="Delete">🗑</button></td>`
+                  : ''
+              }
             </tr>`
           )
           .join('')}</tbody>
       </table>
     `;
+
+    if (canDelete) {
+      el.querySelectorAll<HTMLElement>('[data-action="delete"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id!;
+          if (!confirm(`Delete this reminder? This can't be undone.`)) return;
+          const { error } = await supabase.from('reminders').delete().eq('id', id);
+          if (error) {
+            alert(error.message);
+            return;
+          }
+          load();
+        });
+      });
+    }
   }
 
   document.getElementById('new-btn')!.addEventListener('click', async () => {
