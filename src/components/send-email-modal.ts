@@ -1,26 +1,24 @@
-import { sendEmail } from "@/lib/email";
+import { sendDocumentViaEmail } from '@/lib/documents';
 
 interface Options {
+  customerId: string;
   customerName: string;
   customerEmail: string | null;
+  storage_path: string;
   filename: string;
-  subject: string;
-  html?: string;
-  attachment?: {
-    filename: string;
-    content: string; // Base64
-  };
+  defaultCaption: string;
+  source: 'service_report' | 'invoice' | 'estimate';
+  sourceId: string;
   onSent?: () => void;
 }
 
 export function openSendEmailModal(opts: Options) {
-  const backdrop = document.createElement("div");
-
-  backdrop.className = "modal-backdrop";
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
   backdrop.innerHTML = `
     <div class="modal" style="max-width:500px">
       <div class="modal-head">
-        <h2>Send Email</h2>
+        <h2>Send via Email</h2>
         <button class="modal-close" id="close">✕</button>
       </div>
 
@@ -36,30 +34,22 @@ export function openSendEmailModal(opts: Options) {
         </p>
 
         <div class="field">
-          <label>Subject</label>
-          <input id="subject" value="${opts.subject}">
-        </div>
-
-        <div class="field">
           <label>Message</label>
-          <textarea id="message" rows="6">${
-            opts.html ??
-            `<p>Please find your document attached.</p>`
-          }</textarea>
+          <textarea id="caption" rows="4">${opts.defaultCaption}</textarea>
         </div>
 
         <div class="form-actions">
-          <button class="btn btn-ghost" id="cancel">Cancel</button>
-          <button class="btn btn-primary" id="send">Send Email</button>
+          <button type="button" class="btn btn-ghost" id="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="send">Send Email</button>
         </div>
       `
           : `
         <div class="form-error" style="display:block">
-          This customer has no email address on file.
+          This customer has no email address on file. Add one on their customer record first.
         </div>
 
         <div class="form-actions">
-          <button class="btn btn-ghost" id="cancel">Close</button>
+          <button type="button" class="btn btn-ghost" id="cancel">Close</button>
         </div>
       `
       }
@@ -70,37 +60,35 @@ export function openSendEmailModal(opts: Options) {
 
   const close = () => backdrop.remove();
 
-  backdrop.querySelector("#close")?.addEventListener("click", close);
-  backdrop.querySelector("#cancel")?.addEventListener("click", close);
+  backdrop.querySelector('#close')!.addEventListener('click', close);
+  backdrop.querySelector('#cancel')!.addEventListener('click', close);
 
-  const sendBtn = backdrop.querySelector("#send") as HTMLButtonElement | null;
+  const sendBtn = backdrop.querySelector('#send') as HTMLButtonElement | null;
 
-  sendBtn?.addEventListener("click", async () => {
-    const errBox = backdrop.querySelector("#err") as HTMLElement;
+  sendBtn?.addEventListener('click', async () => {
+    const errBox = backdrop.querySelector('#err') as HTMLElement;
 
     sendBtn.disabled = true;
-    sendBtn.textContent = "Sending...";
+    sendBtn.textContent = 'Sending…';
 
     try {
-      await sendEmail({
-        to: opts.customerEmail!,
-        subject: (
-          backdrop.querySelector("#subject") as HTMLInputElement
-        ).value,
-        html: (
-          backdrop.querySelector("#message") as HTMLTextAreaElement
-        ).value,
-        attachments: opts.attachment ? [opts.attachment] : undefined,
+      await sendDocumentViaEmail({
+        storage_path: opts.storage_path,
+        filename: opts.filename,
+        caption: (backdrop.querySelector('#caption') as HTMLTextAreaElement).value,
+        customer_id: opts.customerId,
+        source: opts.source,
+        source_id: opts.sourceId
       });
 
       close();
       opts.onSent?.();
     } catch (err: any) {
-      errBox.style.display = "block";
-      errBox.textContent = err.message ?? "Failed to send email.";
+      errBox.style.display = 'block';
+      errBox.textContent = err.message ?? 'Failed to send email.';
 
       sendBtn.disabled = false;
-      sendBtn.textContent = "Send Email";
+      sendBtn.textContent = 'Send Email';
     }
   });
 }

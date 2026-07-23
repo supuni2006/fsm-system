@@ -117,6 +117,7 @@ export async function renderInvoices(profile: Profile) {
         await ensurePdfUrl(inv); // makes sure pdf_storage_path is populated before we send it
         const { data: fresh } = await supabase.from('invoices').select('pdf_storage_path').eq('id', inv.id).single();
         openSendEmailModal({
+          customerId: inv.customer_id,
           customerName: label,
           customerEmail: inv.customers?.email ?? null,
           storage_path: fresh?.pdf_storage_path ?? '',
@@ -155,7 +156,7 @@ function row(inv: any, docType: DocType, isAdmin: boolean): string {
     `<button class="btn btn-ghost btn-sm" data-action="print" data-id="${inv.id}" title="Print">🖨</button>`
   ];
   if (isAdmin) {
-    actions.push(`<button class="btn btn-ghost btn-sm" data-action="send" data-id="${inv.id}" title="Send via WhatsApp">💬</button>`);
+    actions.push(`<button class="btn btn-ghost btn-sm" data-action="send" data-id="${inv.id}" title="Send via Email">✉️</button>`);
     if (docType === 'estimate') {
       actions.push(`<button class="btn btn-ghost btn-sm" data-action="convert" data-id="${inv.id}" title="Convert to invoice">➜ Invoice</button>`);
     }

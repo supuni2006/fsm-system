@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { renderShell } from '@/components/layout';
 import { mountAttachments } from '@/components/attachments';
+import { openSendEmailModal } from '@/components/send-email-modal';
 import { generateServiceReport, getServiceReport, deleteServiceReport, getSignedPdfUrl, downloadPdf, printPdf } from '@/lib/documents';
 import { assignTechnician, acceptWorkOrder, declineWorkOrder, startWork, endWork, sendStartWorkEmail } from '@/lib/work-order-actions';
 import type { Profile, WorkOrderPriority, WorkOrderStatus } from '@/types/database.types';
@@ -195,7 +196,7 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
 
   const { data: wo, error } = await supabase
     .from('work_orders')
-    .select('*, customers(contact_name, phone, service_address), profiles!work_orders_assigned_technician_id_fkey(id, full_name)')
+    .select('*, customers(contact_name, phone, email, service_address), profiles!work_orders_assigned_technician_id_fkey(id, full_name)')
     .eq('id', id)
     .single();
 
@@ -421,7 +422,7 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
             <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
               <button class="btn btn-ghost btn-sm" id="rep-download">⬇ Download PDF</button>
               <button class="btn btn-ghost btn-sm" id="rep-print">🖨 Print</button>
-              ${canEdit ? `<button class="btn btn-ghost btn-sm" id="rep-send">💬 Send via WhatsApp</button>` : ''}
+              ${canEdit ? `<button class="btn btn-ghost btn-sm" id="rep-send">✉️ Send via Email</button>` : ''}
               ${canEdit ? `<button class="btn btn-ghost btn-sm" id="rep-regen">↻ Regenerate</button>` : ''}
               ${profile.role === 'admin' ? `<button class="btn btn-ghost btn-sm" id="rep-delete">🗑 Delete</button>` : ''}
             </div>
@@ -436,11 +437,11 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
           if (url) printPdf(url);
         });
         document.getElementById('rep-send')?.addEventListener('click', () => {
-          openSendWhatsappModal({
+          openSendEmailModal({
             customerId: (wo as any).customer_id,
             customerName: wo.customers?.contact_name ?? 'customer',
-            customerPhone: wo.customers?.phone ?? null,
-            storagePath: report.pdf_storage_path ?? '',
+            customerEmail: wo.customers?.email ?? null,
+            storage_path: report.pdf_storage_path ?? '',
             filename: `${report.report_number}.pdf`,
             defaultCaption: `Hi ${wo.customers?.contact_name ?? ''}, here's the service report for your recent job (${wo.wo_number}).`,
             source: 'service_report',
@@ -520,7 +521,7 @@ function openGenerateReportModal(wo: any, onDone: () => void) {
       <div class="modal-head"><h2>Generate Service Report</h2><button class="modal-close" id="close">✕</button></div>
       <div id="err" class="form-error" style="display:none"></div>
       <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px">
-        This creates a PDF service report for ${wo.wo_number} that you can download or send to the customer on WhatsApp.
+        This creates a PDF service report for ${wo.wo_number} that you can download or email to the customer.
       </p>
       <div class="field"><label>Summary</label><textarea id="rg-summary" rows="2" placeholder="Brief summary of the visit…">${wo.description ?? ''}</textarea></div>
       <div class="field"><label>Work performed</label><textarea id="rg-work" rows="3" placeholder="What was done on site…"></textarea></div>
