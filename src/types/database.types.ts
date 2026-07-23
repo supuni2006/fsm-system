@@ -91,6 +91,9 @@ export interface WorkOrder {
   service_lat: number | null;
   service_lng: number | null;
   signature_url: string | null;
+  start_email_token: string | null;
+  start_email_token_expires_at: string | null;
+  start_email_sent_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

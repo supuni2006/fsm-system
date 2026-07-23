@@ -3,7 +3,7 @@ import { renderShell } from '@/components/layout';
 import { mountAttachments } from '@/components/attachments';
 import { openSendWhatsappModal } from '@/components/send-whatsapp-modal';
 import { generateServiceReport, getServiceReport, deleteServiceReport, getSignedPdfUrl, downloadPdf, printPdf } from '@/lib/documents';
-import { assignTechnician, acceptWorkOrder, declineWorkOrder, startWork, endWork } from '@/lib/work-order-actions';
+import { assignTechnician, acceptWorkOrder, declineWorkOrder, startWork, endWork, sendStartWorkEmail } from '@/lib/work-order-actions';
 import type { Profile, WorkOrderPriority, WorkOrderStatus } from '@/types/database.types';
 import { navigate } from '@/router';
 
@@ -246,6 +246,12 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
                 ${technicians.map((t) => `<option value="${t.id}" ${t.id === wo.assigned_technician_id ? 'selected' : ''}>${t.full_name}</option>`).join('')}
               </select>
               <div id="assign-status" style="font-size:12px;color:var(--ink-soft);margin-top:6px"></div>
+              ${
+                wo.assigned_technician_id && wo.status !== 'in_progress' && wo.status !== 'completed' && wo.status !== 'cancelled'
+                  ? `<button class="btn btn-ghost btn-sm" id="send-start-email" style="margin-top:8px">✉ Email "Start Work" link</button>
+                     <div id="send-start-email-status" style="font-size:12px;color:var(--ink-soft);margin-top:6px"></div>`
+                  : ''
+              }
             </div>`
           : ''
       }
@@ -297,6 +303,21 @@ export async function renderWorkOrderDetail(profile: Profile, id: string) {
         return;
       }
       renderWorkOrderDetail(profile, id);
+    });
+
+    document.getElementById('send-start-email')?.addEventListener('click', async () => {
+      const btn = document.getElementById('send-start-email') as HTMLButtonElement;
+      const statusEl = document.getElementById('send-start-email-status')!;
+      btn.disabled = true;
+      statusEl.textContent = 'Sending email…';
+      try {
+        const { sentTo } = await sendStartWorkEmail(id);
+        statusEl.textContent = `Sent to ${sentTo}. They can tap "Start Work" in the email — no login needed.`;
+      } catch (err: any) {
+        statusEl.textContent = err.message ?? 'Failed to send email.';
+      } finally {
+        btn.disabled = false;
+      }
     });
   }
 

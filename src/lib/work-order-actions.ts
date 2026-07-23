@@ -49,6 +49,19 @@ export async function assignTechnician(workOrderId: string, technicianId: string
   }
 }
 
+/**
+ * Emails the assigned technician a "Start Work" link that works without
+ * logging into the app (see supabase/functions/send-work-order-email and
+ * start-work-email). Separate from `assignTechnician`'s WhatsApp ping so an
+ * admin can (re)send it any time — e.g. if the technician missed the
+ * WhatsApp message or doesn't have the app installed.
+ */
+export async function sendStartWorkEmail(workOrderId: string): Promise<{ sentTo: string }> {
+  const { data, error } = await supabase.functions.invoke('send-work-order-email', { body: { work_order_id: workOrderId } });
+  if (error) throw new Error(await extractError(error));
+  return { sentTo: data?.sent_to };
+}
+
 // ---------------- Technician guided actions ----------------
 
 /** Technician confirms they'll take the job. 'assigned' -> 'accepted'. */
