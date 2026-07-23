@@ -262,11 +262,11 @@ begin
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', new.email),
-    coalesce((new.raw_user_meta_data->>'role')::user_role, 'customer')
+    coalesce((new.raw_user_meta_data->>'role')::public.user_role, 'customer'::public.user_role)
   );
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 create trigger trg_on_auth_user_created
   after insert on auth.users
