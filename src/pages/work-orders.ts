@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { renderShell } from '@/components/layout';
 import { mountAttachments } from '@/components/attachments';
-import { openSendWhatsappModal } from '@/components/send-whatsapp-modal';
 import { generateServiceReport, getServiceReport, deleteServiceReport, getSignedPdfUrl, downloadPdf, printPdf } from '@/lib/documents';
 import { assignTechnician, acceptWorkOrder, declineWorkOrder, startWork, endWork, sendStartWorkEmail } from '@/lib/work-order-actions';
 import type { Profile, WorkOrderPriority, WorkOrderStatus } from '@/types/database.types';

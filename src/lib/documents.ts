@@ -180,9 +180,9 @@ export async function convertEstimateToInvoice(estimateId: string): Promise<Invo
   return invoice;
 }
 
-// ---------------- WhatsApp send ----------------
+// ---------------- Email send ----------------
 
-export async function sendDocumentViaWhatsapp(args: {
+export async function sendDocumentViaEmail(args: {
   storage_path: string;
   filename: string;
   caption?: string;
@@ -190,7 +190,7 @@ export async function sendDocumentViaWhatsapp(args: {
   source: 'service_report' | 'invoice' | 'estimate';
   source_id: string;
 }) {
-  const { data, error } = await supabase.functions.invoke('send-whatsapp-document', { body: args });
+  const { data, error } = await supabase.functions.invoke('send-document-email', { body: args });
   if (error) throw new Error(await extractError(error));
   return data;
 }

@@ -1,13 +1,13 @@
 import { supabase } from '@/lib/supabase';
 import { renderShell } from '@/components/layout';
 import { openDocumentModal } from '@/components/document-form';
-import { openSendWhatsappModal } from '@/components/send-whatsapp-modal';
+import { openSendEmailModal } from '@/components/send-email-modal';
 import { ensurePdfUrl, downloadPdf, printPdf, deleteInvoice, convertEstimateToInvoice } from '@/lib/documents';
 import type { Profile, DocType } from '@/types/database.types';
 import { navigate } from '@/router';
 
 export async function renderInvoices(profile: Profile) {
-  const content = renderShell(profile, '/invoices', 'Invoices & Estimates', 'Bills, estimates, and invoices — generate PDFs and send to customers on WhatsApp.');
+  const content = renderShell(profile, '/invoices', 'Invoices & Estimates', 'Bills, estimates, and invoices — generate PDFs and email to customers.');
   const isAdmin = profile.role === 'admin';
 
   content.innerHTML = `
@@ -116,11 +116,10 @@ export async function renderInvoices(profile: Profile) {
       } else if (action === 'send') {
         await ensurePdfUrl(inv); // makes sure pdf_storage_path is populated before we send it
         const { data: fresh } = await supabase.from('invoices').select('pdf_storage_path').eq('id', inv.id).single();
-        openSendWhatsappModal({
-          customerId: inv.customer_id,
+        openSendEmailModal({
           customerName: label,
-          customerPhone: inv.customers?.phone ?? null,
-          storagePath: fresh?.pdf_storage_path ?? '',
+          customerEmail: inv.customers?.email ?? null,
+          storage_path: fresh?.pdf_storage_path ?? '',
           filename: `${inv.invoice_number}.pdf`,
           defaultCaption:
             activeType === 'estimate'
