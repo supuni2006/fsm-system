@@ -48,7 +48,7 @@ export async function renderInvoices(profile: Profile) {
   async function load() {
     let query = supabase
       .from('invoices')
-      .select('*, customers(contact_name, company_name, phone)')
+      .select('*, customers(contact_name, company_name, phone, email)')
       .eq('doc_type', activeType)
       .order('created_at', { ascending: false });
 
