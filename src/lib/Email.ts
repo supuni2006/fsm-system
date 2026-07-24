@@ -2,8 +2,9 @@
 // API — one fetch call, no SDK needed. Swap this out if you use a different
 // provider; every caller just imports `sendEmail` from here.
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
-const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? 'FieldFlow <onboarding@resend.dev>';
+const env = (globalThis as any).Deno?.env ?? (globalThis as any).process?.env;
+const RESEND_API_KEY = env?.get?.('RESEND_API_KEY') ?? env?.RESEND_API_KEY;
+const RESEND_FROM_EMAIL = env?.get?.('RESEND_FROM_EMAIL') ?? env?.RESEND_FROM_EMAIL ?? 'FieldFlow <onboarding@resend.dev>';
 
 export interface SendEmailInput {
   to: string | string[];
